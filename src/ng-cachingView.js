@@ -59,8 +59,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
 
         function cleanupLastView() {
           if (currentScope) {
-              disconnectScope(currentScope);
-//            currentScope.$destroy();
+            disconnectScope(currentScope);
             currentScope = null;
           }
           if(currentElement) {
@@ -75,11 +74,9 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
 
           var url = $route.current && $route.current.templateUrl;
           var view = null;
-          console.log("url=  ", url);
           if (url){
               view = viewCache.get(url);
               if (view){
-//                  $animate.leave(currentElement);
                   cleanupLastView();
                   $animate.enter(view, null, $element);
                   currentElement = view;
@@ -111,7 +108,15 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
               currentScope = current.scope = newScope;
               currentElement = clone;
               currentElement.remove = function(){
-                  this[0].remove();
+//                  this[0].remove();
+                  var i, node, parent;
+                  for (i = 0; i < this.length; i++) {
+                      node = this[i];
+                      parent = node.parentNode;
+                      if (parent) {
+                          parent.removeChild(node);
+                      }
+                  }
               };
 
 
