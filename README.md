@@ -1,5 +1,5 @@
-ng-iscroll
+ng-caching-view
 ==========
 
-angular directive wrapper for iscroll4 with pull-to-refresh
+DOM caching for ng-view
 
