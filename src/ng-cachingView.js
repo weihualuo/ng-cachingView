@@ -38,6 +38,8 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
             }
             scope.$$nextSibling = scope.$$prevSibling = null;
 
+            scope.$broadcast('$disconnected');
+
         }
         function reconnectScope(scope){
             var child = scope;
@@ -54,6 +56,8 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
             } else {
                 parent.$$childHead = parent.$$childTail = child;
             }
+
+            scope.$broadcast('$reconnected');
 
         }
 
@@ -82,14 +86,6 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
                   currentElement = view;
                   currentScope = view.scope();
                   reconnectScope(currentScope);
-                  var current = $route.current;
-                  if (current.controller) {
-                      locals.$scope = currentScope;
-                      var controller = $controller(current.controller, locals);
-                      if (current.controllerAs) {
-                          currentScope[current.controllerAs] = controller;
-                      }
-                  }
                   return;
               }
           }
@@ -123,9 +119,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
               if (current.controller) {
                 locals.$scope = currentScope;
                 var controller = $controller(current.controller, locals);
-                if (current.controllerAs) {
-                  currentScope[current.controllerAs] = controller;
-                }
+                currentScope.$$controller = controller;
                 clone.data('$ngControllerController', controller);
                 clone.children().data('$ngControllerController', controller);
               }
