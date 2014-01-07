@@ -57,10 +57,6 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
             } else {
                 parent.$$childHead = parent.$$childTail = child;
             }
-
-            scope.$broadcast('$reconnected');
-            scope.$emit('$viewContentLoaded');
-
         }
 
         function cleanupLastView() {
@@ -83,7 +79,10 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
           var view = null;
           // Same url change
           if (url == currentUrl && currentScope){
-              currentScope.$broadcast('$reconnected');
+              if (!angular.equals(currentScope.$param, $route.current.params)){
+                  currentScope.$param = $route.current.params;
+                  currentScope.$broadcast('$scopeUpdate');
+              }
               return;
           }
           currentUrl = url;
@@ -96,6 +95,11 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
                   currentElement = view;
                   currentScope = view.scope();
                   reconnectScope(currentScope);
+                  if (!angular.equals(currentScope.$param, $route.current.params)){
+                    currentScope.$param = $route.current.params;
+                    currentScope.$broadcast('$scopeUpdate');
+                  }
+                  currentScope.$emit('$viewContentLoaded');
                   return;
               }
           }
@@ -135,6 +139,9 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
               }
 
               link(currentScope);
+
+              currentScope.$param = current.params;
+              currentScope.$broadcast('$scopeUpdate');
               currentScope.$emit('$viewContentLoaded');
               currentScope.$eval(onloadExp);
 
