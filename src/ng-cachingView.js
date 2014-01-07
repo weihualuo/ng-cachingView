@@ -14,6 +14,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
       return function(scope, $element, attr) {
         var currentScope,
             currentElement,
+            currentUrl,
             onloadExp = attr.onload || '';
 
         var viewCache = $cacheFactory('viewCache');
@@ -58,6 +59,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
             }
 
             scope.$broadcast('$reconnected');
+            scope.$emit('$viewContentLoaded');
 
         }
 
@@ -73,11 +75,19 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
         }
 
         function update() {
+
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
 
           var url = $route.current && $route.current.templateUrl;
           var view = null;
+          // Same url change
+          if (url == currentUrl && currentScope){
+              currentScope.$broadcast('$reconnected');
+              return;
+          }
+          currentUrl = url;
+
           if (url){
               view = viewCache.get(url);
               if (view){
