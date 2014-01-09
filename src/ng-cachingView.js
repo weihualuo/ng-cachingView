@@ -68,8 +68,36 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
           }
         }
 
+        viewStack = [];
+        function changeView(view){
+
+          if (currentElement){
+              if($route.isForward){
+                viewStack.push(currentElement);
+                view.removeClass('reverse');
+                currentElement.removeClass('reverse');
+                $animate.enter(view, null, currentElement || $element);
+              }
+              else{
+
+                view.addClass('reverse');
+                currentElement.addClass('reverse');
+                lastView = viewStack.pop();
+                if (lastView !== view){
+                    $animate.enter(view, null, currentElement || $element);
+                }
+                cleanupLastView();
+              }
+          }
+          else{
+              $animate.enter(view, null, currentElement || $element);
+          }
+          currentElement = view;
+        }
+
         function update() {
           console.log($route);
+          window.$animate = $animate;
 
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
@@ -89,9 +117,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
           if (url){
               view = viewCache.get(url);
               if (view){
-                  $animate.enter(view, null, $element);
-                  cleanupLastView();
-                  currentElement = view;
+                  changeView(view);
                   currentScope = view.scope();
                   reconnectScope(currentScope);
                   if (!angular.equals(currentScope.$param, $route.current.params)){
@@ -113,15 +139,20 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
               // function is called before linking the content, which would apply child
               // directives to non existing elements.
               var clone = $transclude(newScope, function(clone) {
-                  $animate.enter(clone, null, currentElement || $element, function onNgViewEnter () {
-                      if (angular.isDefined(autoScrollExp) &&
-                            (!autoScrollExp || scope.$eval(autoScrollExp))) {
-                          $anchorScroll();
-                      }
-                  });
-                  cleanupLastView();
+                  changeView(clone);
               });
-              currentElement = clone;
+
+              //To avoid scope be detached from element
+              currentElement.remove = function(){
+                  var i, node, parent;
+                  for (i = 0; i < this.length; i++) {
+                      node = this[i];
+                      parent = node.parentNode;
+                      if (parent) {
+                          parent.removeChild(node);
+                      }
+                  }
+              };
               currentScope = current.scope = newScope;
               currentScope.$param = current.params;
               currentScope.$broadcast('$scopeUpdate');
