@@ -1,7 +1,8 @@
 
 
 angular.module('ngCachingView',[])
-.directive('ngCachingView', ngCachingViewFactory);
+.directive('ngCachingView', ngCachingViewFactory)
+.directive('ngCachingView', ngViewFillContentFactory);
 
 ngCachingViewFactory.$inject = ['$cacheFactory', '$route', '$anchorScroll', '$compile', '$controller', '$animate'];
 function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compile,   $controller,   $animate) {
@@ -10,11 +11,11 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
     terminal: true,
     priority: 400,
     transclude: 'element',
-    compile: function(element, attr, linker) {
-      return function(scope, $element, attr) {
+    link:  function(scope, $element, attr, ctrl, $transclude) {
         var currentScope,
             currentElement,
             currentUrl,
+            autoScrollExp = attr.autoscroll,
             onloadExp = attr.onload || '';
 
         var viewCache = $cacheFactory('viewCache');
@@ -38,9 +39,6 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
                 scope.$$nextSibling.$$prevSibling = scope.$$prevSibling;
             }
             scope.$$nextSibling = scope.$$prevSibling = null;
-
-            scope.$broadcast('$disconnected');
-
         }
         function reconnectScope(scope){
             var child = scope;
@@ -71,6 +69,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
         }
 
         function update() {
+          console.log($route);
 
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
@@ -90,8 +89,8 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
           if (url){
               view = viewCache.get(url);
               if (view){
-                  cleanupLastView();
                   $animate.enter(view, null, $element);
+                  cleanupLastView();
                   currentElement = view;
                   currentScope = view.scope();
                   reconnectScope(currentScope);
@@ -104,42 +103,26 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
               }
           }
 
-          if (template) {
-            var newScope = scope.$new();
-            linker(newScope, function(clone) {
-              cleanupLastView();
-
-              clone.html(template);
-              $animate.enter(clone, null, $element);
-
-              var link = $compile(clone.contents()),
-                  current = $route.current;
-
-              currentScope = current.scope = newScope;
-              currentElement = clone;
-              currentElement.remove = function(){
-//                  this[0].remove();
-                  var i, node, parent;
-                  for (i = 0; i < this.length; i++) {
-                      node = this[i];
-                      parent = node.parentNode;
-                      if (parent) {
-                          parent.removeChild(node);
+          if (angular.isDefined(template)) {
+              var newScope = scope.$new();
+              var current = $route.current;
+              // Note: This will also link all children of ng-view that were contained in the original
+              // html. If that content contains controllers, ... they could pollute/change the scope.
+              // However, using ng-view on an element with additional content does not make sense...
+              // Note: We can't remove them in the cloneAttchFn of $transclude as that
+              // function is called before linking the content, which would apply child
+              // directives to non existing elements.
+              var clone = $transclude(newScope, function(clone) {
+                  $animate.enter(clone, null, currentElement || $element, function onNgViewEnter () {
+                      if (angular.isDefined(autoScrollExp) &&
+                            (!autoScrollExp || scope.$eval(autoScrollExp))) {
+                          $anchorScroll();
                       }
-                  }
-              };
-
-
-              if (current.controller) {
-                locals.$scope = currentScope;
-                var controller = $controller(current.controller, locals);
-                currentScope.$$controller = controller;
-                clone.data('$ngControllerController', controller);
-                clone.children().data('$ngControllerController', controller);
-              }
-
-              link(currentScope);
-
+                  });
+                  cleanupLastView();
+              });
+              currentElement = clone;
+              currentScope = current.scope = newScope;
               currentScope.$param = current.params;
               currentScope.$broadcast('$scopeUpdate');
               currentScope.$emit('$viewContentLoaded');
@@ -149,14 +132,44 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
                   viewCache.put(url, clone);
               }
 
-              // $anchorScroll might listen on event...
-              $anchorScroll();
-            });
           } else {
             cleanupLastView();
           }
         }
-      };
-    }
+      }
   };
+}
+
+
+// This directive is called during the $transclude call of the first `ngView` directive.
+// It will replace and compile the content of the element with the loaded template.
+// We need this directive so that the element content is already filled when
+// the link function of another directive on the same element as ngView
+// is called.
+ngViewFillContentFactory.$inject = ['$compile', '$controller', '$route'];
+function ngViewFillContentFactory($compile, $controller, $route) {
+    return {
+        restrict: 'ECA',
+        priority: -400,
+        link: function(scope, $element) {
+            var current = $route.current,
+                locals = current.locals;
+
+            $element.html(locals.$template);
+
+            var link = $compile($element.contents());
+
+            if (current.controller) {
+                locals.$scope = scope;
+                var controller = $controller(current.controller, locals);
+                if (current.controllerAs) {
+                    scope[current.controllerAs] = controller;
+                }
+                $element.data('$ngControllerController', controller);
+                $element.children().data('$ngControllerController', controller);
+            }
+
+            link(scope);
+        }
+    };
 }
