@@ -2,10 +2,17 @@
 
 angular.module('ngCachingView',[])
 .directive('ngCachingView', ngCachingViewFactory)
-.directive('ngCachingView', ngViewFillContentFactory);
+.directive('ngCachingView', ngViewFillContentFactory)
+.factory('viewStack', function(){
 
-ngCachingViewFactory.$inject = ['$cacheFactory', '$route', '$anchorScroll', '$compile', '$controller', '$animate'];
-function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compile,   $controller,   $animate) {
+    viewStack = [];
+
+    return viewStack;
+
+});
+
+ngCachingViewFactory.$inject = ['$cacheFactory', '$route', '$animate', 'viewStack'];
+function ngCachingViewFactory( $cacheFactory,  $route,   $animate, viewStack) {
   return {
     restrict: 'ECA',
     terminal: true,
@@ -68,36 +75,37 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $anchorScroll,   $compi
           }
         }
 
-        viewStack = [];
+        viewStack.push($element);
         function changeView(view){
 
           if (currentElement){
               if($route.isForward){
+                $animate.addClass(currentElement, 'stacked');
                 viewStack.push(currentElement);
-                view.removeClass('reverse');
-                currentElement.removeClass('reverse');
-                $animate.enter(view, null, currentElement || $element);
+                $animate.enter(view, null, currentElement);
               }
               else{
-
-                view.addClass('reverse');
-                currentElement.addClass('reverse');
-                lastView = viewStack.pop();
-                if (lastView !== view){
-                    $animate.enter(view, null, currentElement || $element);
+                backView = viewStack.pop();
+                if (backView !== view){
+                    viewStack.push(backView);
+                    backView.after(view);
+                }
+                else{
+                    $animate.removeClass(view, 'stacked');
                 }
                 cleanupLastView();
               }
           }
           else{
-              $animate.enter(view, null, currentElement || $element);
+              $element.after(view);
           }
+          $route.isForward = false;
           currentElement = view;
         }
 
         function update() {
-          console.log($route);
-          window.$animate = $animate;
+
+          //console.log($route);
 
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
