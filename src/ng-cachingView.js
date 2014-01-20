@@ -1,18 +1,11 @@
 
 
-angular.module('ngCachingView',[])
+angular.module('ngCachingView',['Service'])
 .directive('ngCachingView', ngCachingViewFactory)
-.directive('ngCachingView', ngViewFillContentFactory)
-.factory('viewStack', function(){
+.directive('ngCachingView', ngViewFillContentFactory) ;
 
-    viewStack = [];
-
-    return viewStack;
-
-});
-
-ngCachingViewFactory.$inject = ['$cacheFactory', '$route', '$animate', 'viewStack'];
-function ngCachingViewFactory( $cacheFactory,  $route,   $animate, viewStack) {
+ngCachingViewFactory.$inject = ['$cacheFactory', '$route', '$animate', 'Nav'];
+function ngCachingViewFactory( $cacheFactory,  $route,   $animate, Nav) {
   return {
     restrict: 'ECA',
     terminal: true,
@@ -75,37 +68,46 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $animate, viewStack) {
           }
         }
 
-        viewStack.push($element);
+        Nav.push($element);
         function changeView(view){
 
           if (currentElement){
-              if($route.isForward){
+
+              oldIndex = currentElement.data('$zIndex') || 0;
+              newIndex = view.data('$zIndex') || 0;
+
+              //Stack the current view
+              if(newIndex > oldIndex){
                 $animate.addClass(currentElement, 'stacked');
-                viewStack.push(currentElement);
+                Nav.push(currentElement);
                 $animate.enter(view, null, currentElement);
               }
               else{
-                backView = viewStack.pop();
+                backView = Nav.pop();
+                //Replace current view, stacked view unchanged
                 if (backView !== view){
-                    viewStack.push(backView);
+                    Nav.push(backView);
                     backView.after(view);
                 }
+                //Remove current view and pop up stacked view
                 else{
                     $animate.removeClass(view, 'stacked');
                 }
+                //Always remove current view
                 cleanupLastView();
               }
           }
           else{
               $element.after(view);
           }
-          $route.isForward = false;
           currentElement = view;
+          Nav.set(view);
         }
 
         function update() {
 
-          //console.log($route);
+          console.log($route);
+          window.$route = $route;
 
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
@@ -116,6 +118,7 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $animate, viewStack) {
           if (url == currentUrl && currentScope){
               if (!angular.equals(currentScope.$param, $route.current.params)){
                   currentScope.$param = $route.current.params;
+                  console.log('param:', currentScope.$param);
                   currentScope.$broadcast('$scopeUpdate');
               }
               return;
@@ -146,12 +149,11 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $animate, viewStack) {
               // Note: We can't remove them in the cloneAttchFn of $transclude as that
               // function is called before linking the content, which would apply child
               // directives to non existing elements.
-              var clone = $transclude(newScope, function(clone) {
-                  changeView(clone);
-              });
+              var clone = $transclude(newScope, function(clone) {});
 
+              changeView(clone);
               //To avoid scope be detached from element
-              currentElement.remove = function(){
+              clone.remove = function(){
                   var i, node, parent;
                   for (i = 0; i < this.length; i++) {
                       node = this[i];
@@ -197,6 +199,12 @@ function ngViewFillContentFactory($compile, $controller, $route) {
             $element.html(locals.$template);
 
             var link = $compile($element.contents());
+
+
+            if(current.zIndex){
+                $element.data('$zIndex', Number(current.zIndex));
+                $element.data('$templateUrl', current.templateUrl);
+            }
 
             if (current.controller) {
                 locals.$scope = scope;
