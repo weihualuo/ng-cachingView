@@ -106,8 +106,8 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $animate, Nav) {
 
         function update() {
 
-          console.log($route);
-          window.$route = $route;
+          //console.log($route);
+          //window.$route = $route;
 
           var locals = $route.current && $route.current.locals,
               template = locals && locals.$template;
@@ -118,7 +118,6 @@ function ngCachingViewFactory( $cacheFactory,  $route,   $animate, Nav) {
           if (url == currentUrl && currentScope){
               if (!angular.equals(currentScope.$param, $route.current.params)){
                   currentScope.$param = $route.current.params;
-                  console.log('param:', currentScope.$param);
                   currentScope.$broadcast('$scopeUpdate');
               }
               return;
